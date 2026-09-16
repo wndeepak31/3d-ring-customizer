@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { createProduct } from '@/actions/productActions';
 import { UploadCloud, CheckCircle2, FileCheck2, X, Image as ImageIcon } from 'lucide-react';
 
+import { uploadDirectToS3 } from '@/lib/clientUpload';
+
 function formatBytes(bytes: number) {
   if (!bytes || bytes === 0) return '0 B';
   const k = 1024;
@@ -15,6 +17,7 @@ function formatBytes(bytes: number) {
 export default function AddProductPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [error, setError] = useState('');
 
   const [selectedGlb, setSelectedGlb] = useState<File | null>(null);
@@ -51,15 +54,94 @@ export default function AddProductPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setUploadStatus('Preparing files...');
 
-    const formData = new FormData(e.currentTarget);
-    const result = await createProduct(formData);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
 
-    if (result.error) {
-      setError(result.error);
+    try {
+      // 1. Upload GLB 3D model directly to S3
+      const glbFile = (form.elements.namedItem('glbFile') as HTMLInputElement)?.files?.[0] || selectedGlb;
+      if (glbFile) {
+        setUploadStatus(`Uploading 3D model (${formatBytes(glbFile.size)}) directly to AWS S3...`);
+        const s3GlbUrl = await uploadDirectToS3(glbFile, 'models');
+        if (s3GlbUrl) {
+          formData.set('glbUrl', s3GlbUrl);
+          formData.delete('glbFile'); // strip heavy binary from Vercel payload
+        }
+      }
+
+      // 2. Upload White Gold image directly to S3
+      const whiteFile = (form.elements.namedItem('imageWhiteFile') as HTMLInputElement)?.files?.[0];
+      if (whiteFile) {
+        setUploadStatus('Uploading White Gold render to AWS S3...');
+        const s3WhiteUrl = await uploadDirectToS3(whiteFile, 'thumbnails');
+        if (s3WhiteUrl) {
+          formData.set('imageWhite', s3WhiteUrl);
+          formData.delete('imageWhiteFile');
+        }
+      }
+
+      // 3. Upload Yellow Gold image directly to S3
+      const yellowFile = (form.elements.namedItem('imageYellowFile') as HTMLInputElement)?.files?.[0];
+      if (yellowFile) {
+        setUploadStatus('Uploading Yellow Gold render to AWS S3...');
+        const s3YellowUrl = await uploadDirectToS3(yellowFile, 'thumbnails');
+        if (s3YellowUrl) {
+          formData.set('imageYellow', s3YellowUrl);
+          formData.delete('imageYellowFile');
+        }
+      }
+
+      // 4. Upload Rose Gold image directly to S3
+      const roseFile = (form.elements.namedItem('imageRoseFile') as HTMLInputElement)?.files?.[0];
+      if (roseFile) {
+        setUploadStatus('Uploading Rose Gold render to AWS S3...');
+        const s3RoseUrl = await uploadDirectToS3(roseFile, 'thumbnails');
+        if (s3RoseUrl) {
+          formData.set('imageRose', s3RoseUrl);
+          formData.delete('imageRoseFile');
+        }
+      }
+
+      // 5. Upload Primary Thumbnail directly to S3
+      const thumbFile = (form.elements.namedItem('thumbnailFile') as HTMLInputElement)?.files?.[0];
+      if (thumbFile) {
+        setUploadStatus('Uploading thumbnail to AWS S3...');
+        const s3ThumbUrl = await uploadDirectToS3(thumbFile, 'thumbnails');
+        if (s3ThumbUrl) {
+          formData.set('thumbnailUrl', s3ThumbUrl);
+          formData.delete('thumbnailFile');
+        }
+      }
+
+      // 6. Upload Gallery Images directly to S3
+      const galleryInput = form.elements.namedItem('galleryFiles') as HTMLInputElement;
+      if (galleryInput?.files && galleryInput.files.length > 0) {
+        setUploadStatus('Uploading gallery images to AWS S3...');
+        const galleryFilesList = Array.from(galleryInput.files);
+        formData.delete('galleryFiles');
+        for (const gFile of galleryFilesList) {
+          const s3GUrl = await uploadDirectToS3(gFile, 'thumbnails');
+          if (s3GUrl) {
+            formData.append('galleryUrls', s3GUrl);
+          }
+        }
+      }
+
+      setUploadStatus('Saving product to database...');
+      const result = await createProduct(formData);
+
+      if (result.error) {
+        setError(result.error);
+        setLoading(false);
+      } else {
+        router.push('/admin/products');
+      }
+    } catch (err: any) {
+      console.error('Submit error:', err);
+      setError(err?.message || 'Upload failed. Please check internet connection.');
       setLoading(false);
-    } else {
-      router.push('/admin/products');
     }
   };
 
@@ -469,7 +551,12 @@ export default function AddProductPage() {
                 Cancel
               </button>
               <button type="submit" disabled={loading} className="inline-flex items-center justify-center px-8 py-3 border border-transparent shadow-md text-sm font-bold rounded-full text-white bg-[#0B132B] hover:bg-blue-900 focus:outline-none transition-colors disabled:opacity-70 disabled:cursor-not-allowed uppercase tracking-wider">
-                {loading ? 'Processing...' : (
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    {uploadStatus || 'Processing...'}
+                  </span>
+                ) : (
                   <>
                     <CheckCircle2 className="mr-2 h-4 w-4" /> Save Asset
                   </>

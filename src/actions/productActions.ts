@@ -26,24 +26,34 @@ export async function createProduct(formData: FormData) {
   const imageYellowFile = formData.get('imageYellowFile') as File | null;
   const imageRoseFile = formData.get('imageRoseFile') as File | null;
 
-  if (!name || !sku || !glbFile) {
+  const glbUrlDirect = formData.get('glbUrl') as string | null;
+
+  if (!name || !sku || (!glbFile && !glbUrlDirect)) {
     return { error: 'Name, SKU, and GLB file are required.' };
   }
 
   const slug = slugify(name, { lower: true, strict: true });
 
   try {
-    // 1. Upload GLB 3D Model
-    const glbUrl = await uploadFile(glbFile, 'models');
+    // 1. Upload GLB 3D Model (or use direct S3 URL)
+    let glbUrl = glbUrlDirect || '';
+    if (!glbUrl && glbFile && glbFile.size > 0) {
+      glbUrl = await uploadFile(glbFile, 'models');
+    }
+
+    if (!glbUrl) {
+      return { error: 'GLB 3D model is required.' };
+    }
 
     // 2. Upload Thumbnail if provided
-    let thumbnailUrl: string | null = null;
-    if (thumbnailFile && thumbnailFile.size > 0) {
+    let thumbnailUrl: string | null = (formData.get('thumbnailUrl') as string) || null;
+    if (!thumbnailUrl && thumbnailFile && thumbnailFile.size > 0) {
       thumbnailUrl = await uploadFile(thumbnailFile, 'thumbnails');
     }
 
     // 3. Upload Gallery Images
-    const galleryUrls: string[] = [];
+    const preGalleryUrls = (formData.getAll('galleryUrls') as string[]).filter(Boolean);
+    const galleryUrls: string[] = [...preGalleryUrls];
     if (galleryFiles && galleryFiles.length > 0) {
       for (const file of galleryFiles) {
         if (file.size > 0) {
@@ -54,17 +64,17 @@ export async function createProduct(formData: FormData) {
     }
 
     // 4. Upload Specific Metal Images
-    let imageWhite: string | null = null;
-    let imageYellow: string | null = null;
-    let imageRose: string | null = null;
+    let imageWhite: string | null = (formData.get('imageWhite') as string) || null;
+    let imageYellow: string | null = (formData.get('imageYellow') as string) || null;
+    let imageRose: string | null = (formData.get('imageRose') as string) || null;
 
-    if (imageWhiteFile && imageWhiteFile.size > 0) {
+    if (!imageWhite && imageWhiteFile && imageWhiteFile.size > 0) {
       imageWhite = await uploadFile(imageWhiteFile, 'thumbnails');
     }
-    if (imageYellowFile && imageYellowFile.size > 0) {
+    if (!imageYellow && imageYellowFile && imageYellowFile.size > 0) {
       imageYellow = await uploadFile(imageYellowFile, 'thumbnails');
     }
-    if (imageRoseFile && imageRoseFile.size > 0) {
+    if (!imageRose && imageRoseFile && imageRoseFile.size > 0) {
       imageRose = await uploadFile(imageRoseFile, 'thumbnails');
     }
 
@@ -147,18 +157,27 @@ export async function updateProduct(id: string, formData: FormData) {
       status,
     };
 
-    // Update GLB if provided
-    if (glbFile && glbFile.size > 0) {
+    // Update GLB if provided (direct URL or file)
+    const glbUrlDirect = formData.get('glbUrl') as string | null;
+    if (glbUrlDirect) {
+      dataToUpdate.glbUrl = glbUrlDirect;
+    } else if (glbFile && glbFile.size > 0) {
       dataToUpdate.glbUrl = await uploadFile(glbFile, 'models');
     }
 
-    // Update Thumbnail if provided
-    if (thumbnailFile && thumbnailFile.size > 0) {
+    // Update Thumbnail if provided (direct URL or file)
+    const thumbnailUrlDirect = formData.get('thumbnailUrl') as string | null;
+    if (thumbnailUrlDirect) {
+      dataToUpdate.thumbnailUrl = thumbnailUrlDirect;
+    } else if (thumbnailFile && thumbnailFile.size > 0) {
       dataToUpdate.thumbnailUrl = await uploadFile(thumbnailFile, 'thumbnails');
     }
 
     // Update Gallery if provided
-    if (galleryFiles && galleryFiles.length > 0 && galleryFiles[0].size > 0) {
+    const preGalleryUrls = (formData.getAll('galleryUrls') as string[]).filter(Boolean);
+    if (preGalleryUrls.length > 0) {
+      dataToUpdate.galleryUrls = preGalleryUrls;
+    } else if (galleryFiles && galleryFiles.length > 0 && galleryFiles[0].size > 0) {
       const galleryUrls: string[] = [];
       for (const file of galleryFiles) {
         if (file.size > 0) {
@@ -169,14 +188,25 @@ export async function updateProduct(id: string, formData: FormData) {
       dataToUpdate.galleryUrls = galleryUrls;
     }
 
-    // Update Specific Metal Images if provided
-    if (imageWhiteFile && imageWhiteFile.size > 0) {
+    // Update Specific Metal Images if provided (direct URL or file)
+    const imageWhiteDirect = formData.get('imageWhite') as string | null;
+    if (imageWhiteDirect) {
+      dataToUpdate.imageWhite = imageWhiteDirect;
+    } else if (imageWhiteFile && imageWhiteFile.size > 0) {
       dataToUpdate.imageWhite = await uploadFile(imageWhiteFile, 'thumbnails');
     }
-    if (imageYellowFile && imageYellowFile.size > 0) {
+
+    const imageYellowDirect = formData.get('imageYellow') as string | null;
+    if (imageYellowDirect) {
+      dataToUpdate.imageYellow = imageYellowDirect;
+    } else if (imageYellowFile && imageYellowFile.size > 0) {
       dataToUpdate.imageYellow = await uploadFile(imageYellowFile, 'thumbnails');
     }
-    if (imageRoseFile && imageRoseFile.size > 0) {
+
+    const imageRoseDirect = formData.get('imageRose') as string | null;
+    if (imageRoseDirect) {
+      dataToUpdate.imageRose = imageRoseDirect;
+    } else if (imageRoseFile && imageRoseFile.size > 0) {
       dataToUpdate.imageRose = await uploadFile(imageRoseFile, 'thumbnails');
     }
 

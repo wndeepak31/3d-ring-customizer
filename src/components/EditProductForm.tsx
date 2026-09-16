@@ -15,6 +15,7 @@ import {
   Eye, 
   Image as ImageIcon 
 } from 'lucide-react';
+import { uploadDirectToS3 } from '@/lib/clientUpload';
 
 function formatBytes(bytes: number) {
   if (!bytes || bytes === 0) return '0 B';
@@ -38,6 +39,7 @@ function getFileNameFromUrl(url?: string | null) {
 export default function EditProductForm({ product }: { product: any }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [error, setError] = useState('');
 
   // Track selected replacement files for live UI feedback
@@ -75,15 +77,96 @@ export default function EditProductForm({ product }: { product: any }) {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setUploadStatus('Preparing files...');
 
-    const formData = new FormData(e.currentTarget);
-    const result = await updateProduct(product.id, formData);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
 
-    if (result.error) {
-      setError(result.error);
+    try {
+      // 1. Upload replacement GLB directly to S3 if selected
+      const glbFile = (form.elements.namedItem('glbFile') as HTMLInputElement)?.files?.[0] || selectedGlb;
+      if (glbFile && glbFile.size > 0) {
+        setUploadStatus(`Uploading 3D model (${formatBytes(glbFile.size)}) directly to AWS S3...`);
+        const s3GlbUrl = await uploadDirectToS3(glbFile, 'models');
+        if (s3GlbUrl) {
+          formData.set('glbUrl', s3GlbUrl);
+          formData.delete('glbFile');
+        }
+      }
+
+      // 2. Upload replacement White Gold image directly to S3
+      const whiteFile = (form.elements.namedItem('imageWhiteFile') as HTMLInputElement)?.files?.[0];
+      if (whiteFile && whiteFile.size > 0) {
+        setUploadStatus('Uploading White Gold render to AWS S3...');
+        const s3WhiteUrl = await uploadDirectToS3(whiteFile, 'thumbnails');
+        if (s3WhiteUrl) {
+          formData.set('imageWhite', s3WhiteUrl);
+          formData.delete('imageWhiteFile');
+        }
+      }
+
+      // 3. Upload replacement Yellow Gold image directly to S3
+      const yellowFile = (form.elements.namedItem('imageYellowFile') as HTMLInputElement)?.files?.[0];
+      if (yellowFile && yellowFile.size > 0) {
+        setUploadStatus('Uploading Yellow Gold render to AWS S3...');
+        const s3YellowUrl = await uploadDirectToS3(yellowFile, 'thumbnails');
+        if (s3YellowUrl) {
+          formData.set('imageYellow', s3YellowUrl);
+          formData.delete('imageYellowFile');
+        }
+      }
+
+      // 4. Upload replacement Rose Gold image directly to S3
+      const roseFile = (form.elements.namedItem('imageRoseFile') as HTMLInputElement)?.files?.[0];
+      if (roseFile && roseFile.size > 0) {
+        setUploadStatus('Uploading Rose Gold render to AWS S3...');
+        const s3RoseUrl = await uploadDirectToS3(roseFile, 'thumbnails');
+        if (s3RoseUrl) {
+          formData.set('imageRose', s3RoseUrl);
+          formData.delete('imageRoseFile');
+        }
+      }
+
+      // 5. Upload replacement Thumbnail directly to S3
+      const thumbFile = (form.elements.namedItem('thumbnailFile') as HTMLInputElement)?.files?.[0];
+      if (thumbFile && thumbFile.size > 0) {
+        setUploadStatus('Uploading thumbnail to AWS S3...');
+        const s3ThumbUrl = await uploadDirectToS3(thumbFile, 'thumbnails');
+        if (s3ThumbUrl) {
+          formData.set('thumbnailUrl', s3ThumbUrl);
+          formData.delete('thumbnailFile');
+        }
+      }
+
+      // 6. Upload Gallery Images directly to S3
+      const galleryInput = form.elements.namedItem('galleryFiles') as HTMLInputElement;
+      if (galleryInput?.files && galleryInput.files.length > 0) {
+        setUploadStatus('Uploading gallery images to AWS S3...');
+        const galleryFilesList = Array.from(galleryInput.files);
+        formData.delete('galleryFiles');
+        for (const gFile of galleryFilesList) {
+          if (gFile.size > 0) {
+            const s3GUrl = await uploadDirectToS3(gFile, 'thumbnails');
+            if (s3GUrl) {
+              formData.append('galleryUrls', s3GUrl);
+            }
+          }
+        }
+      }
+
+      setUploadStatus('Updating product in database...');
+      const result = await updateProduct(product.id, formData);
+
+      if (result.error) {
+        setError(result.error);
+        setLoading(false);
+      } else {
+        router.push('/admin/products');
+      }
+    } catch (err: any) {
+      console.error('Update error:', err);
+      setError(err?.message || 'Update failed. Please check your internet or S3 credentials.');
       setLoading(false);
-    } else {
-      router.push('/admin/products');
     }
   };
 
@@ -577,7 +660,12 @@ export default function EditProductForm({ product }: { product: any }) {
               Cancel
             </button>
             <button type="submit" disabled={loading} className="inline-flex items-center justify-center px-8 py-3 border border-transparent shadow-md text-sm font-bold rounded-full text-white bg-[#0B132B] hover:bg-blue-900 focus:outline-none transition-colors disabled:opacity-70 disabled:cursor-not-allowed uppercase tracking-wider">
-              {loading ? 'Processing...' : (
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  {uploadStatus || 'Processing...'}
+                </span>
+              ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" /> Save Changes
                 </>

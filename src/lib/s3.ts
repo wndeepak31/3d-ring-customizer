@@ -105,3 +105,33 @@ export async function deleteFile(fileUrl?: string | null): Promise<void> {
     console.error('Failed to delete S3 file:', error);
   }
 }
+
+/**
+ * Generates a presigned URL allowing the browser to upload a file directly to AWS S3.
+ * Completely avoids Vercel's 4.5MB serverless payload limit.
+ */
+export async function getPresignedUploadUrl(
+  fileName: string,
+  fileType: string,
+  folder: 'models' | 'thumbnails' = 'thumbnails'
+): Promise<{ uploadUrl: string; publicUrl: string; key: string; contentType: string } | null> {
+  if (!isS3Configured() || !s3Client || !bucketName) {
+    return null;
+  }
+
+  const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+  const cleanFileName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '-')}`;
+  const key = `${folder}/${cleanFileName}`;
+  const contentType = fileType || getContentType(fileName);
+
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+    ContentType: contentType,
+  });
+
+  const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+  const publicUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
+
+  return { uploadUrl, publicUrl, key, contentType };
+}
