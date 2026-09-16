@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SystemSettings {
+  id                  String   @id @default("global")
+  goldPrice24k        Float    @default(7000) // Default ~7000 INR per gram
+  silverPrice         Float    @default(90)   // Default ~90 INR per gram
+  platinumPrice       Float    @default(3000) // Default ~3000 INR per gram
+  palladiumPrice      Float    @default(3000) // Default ~3000 INR per gram
+  diamondPrice        Float    @default(32000) // Diamond rate per ct
+  makingChargePerGram Float    @default(2000) // Making charge per gram
+  updatedAt           DateTime @updatedAt
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  sku          String   @unique
+  glbUrl       String
+  thumbnailUrl String?
+  imageWhite   String?
+  imageYellow  String?
+  imageRose    String?
+  galleryUrls  String[]
+  category     String?
+  description  String?
+  price        Float    @default(0)
+  weight       Float    @default(0) // weight in grams
+  stock        Int      @default(0)
+  metalType    String?
+  gemstone     String?
+  isFeatured   Boolean  @default(false)
+  seoTitle     String?
+  seoDesc      String?
+  status       String   @default("ACTIVE") // ACTIVE, DRAFT, ARCHIVED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
