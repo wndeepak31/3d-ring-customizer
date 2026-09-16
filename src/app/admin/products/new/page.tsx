@@ -184,6 +184,18 @@ export default function AddProductPage() {
                   3D GLB Asset (*.glb) <span className="text-red-500">*</span>
                 </label>
 
+                {/* Persistent file input (must always stay mounted for FormData) */}
+                <input
+                  ref={glbInputRef}
+                  id="glbFile"
+                  name="glbFile"
+                  type="file"
+                  accept=".glb"
+                  required={!selectedGlb}
+                  onChange={handleGlbChange}
+                  className="hidden"
+                />
+
                 {selectedGlb ? (
                   <div className="p-5 rounded-2xl bg-emerald-50/70 border-2 border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center space-x-3.5 min-w-0">
@@ -206,34 +218,34 @@ export default function AddProductPage() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleClearGlb}
-                      className="px-3.5 py-2 rounded-xl bg-white text-red-600 hover:bg-red-50 border border-gray-200 text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors shrink-0"
-                    >
-                      <X className="w-3.5 h-3.5" /> Remove / Reselect
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => glbInputRef.current?.click()}
+                        className="px-3 py-2 rounded-xl bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 text-xs font-bold transition-colors shadow-xs"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearGlb}
+                        className="px-3.5 py-2 rounded-xl bg-white text-red-600 hover:bg-red-50 border border-gray-200 text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" /> Remove
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="mt-1 flex justify-center px-6 pt-8 pb-8 border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div
+                    onClick={() => glbInputRef.current?.click()}
+                    className="mt-1 flex justify-center px-6 pt-8 pb-8 border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
                     <div className="space-y-3 text-center flex flex-col items-center">
                       <div className="h-14 w-14 rounded-full bg-white shadow-sm flex items-center justify-center text-blue-500">
                         <UploadCloud className="h-6 w-6" />
                       </div>
                       <div className="flex text-sm text-gray-600 justify-center">
-                        <label htmlFor="glbFile" className="relative cursor-pointer rounded-md font-bold text-blue-600 hover:text-blue-700">
-                          <span>Click to select 3D model (.glb)</span>
-                          <input
-                            ref={glbInputRef}
-                            id="glbFile"
-                            name="glbFile"
-                            type="file"
-                            accept=".glb"
-                            required
-                            onChange={handleGlbChange}
-                            className="sr-only"
-                          />
-                        </label>
+                        <span className="font-bold text-blue-600 hover:text-blue-700">Click to select 3D model (.glb)</span>
                       </div>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Supports binary .glb files (up to 50MB)</p>
                     </div>
